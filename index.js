@@ -7,7 +7,17 @@ requirejs.config({
 });
 require = requirejs;
 
+//get application arguments either from the config or the commandline
+var slackToken = '';
+var mongoUri = '';
+try {
+	var config = require('config');
+	slackToken = config.SLACK_TOKEN;
+	mongoUri = config.MONGO_URI;
+}
+catch(err) {}
+slackToken = process.env.SLACK_TOKEN || slackToken;
+mongoUri = process.env.MONGO_URI || mongoUri;
+
 //run server application
-var config = require('config');
-require('main')(process.env.SLACK_TOKEN || config.SLACK_TOKEN,
-	process.env.MONGO_URI || config.MONGO_URI);
+require('main')(slackToken, mongoUri);
