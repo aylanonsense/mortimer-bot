@@ -1,0 +1,16 @@
+{
+  "name": "mortimer-bot",
+  "version": "0.0.0",
+  "description": "Fooling around with creating a slack bot for funsies.",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bridgs/mortimer-bot.git"
+  },
+  "author": "bridgs",
+  "license": "MIT",
+  "dependencies": {
+    "@slack/client": "^3.5.4",
+    "requirejs": "^2.2.0"
+  }
+}
