@@ -1,8 +1,6 @@
-//get dependencies
+//configure requirejs
 var path = require('path');
 var requirejs = require('requirejs');
-
-//configure requirejs
 requirejs.config({
 	baseUrl: path.join(__dirname, 'javascripts'),
 	nodeRequire: require
@@ -10,4 +8,6 @@ requirejs.config({
 require = requirejs;
 
 //run server application
-require('main')(process.env.SLACK_API_TOKEN || '');
+var config = require('config');
+require('main')(process.env.SLACK_TOKEN || config.SLACK_TOKEN,
+	process.env.MONGO_URI || config.MONGO_URI);

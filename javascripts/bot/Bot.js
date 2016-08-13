@@ -11,27 +11,24 @@ define([
 
 	function Bot() {
 		this._rtm = null;
-		this._events = new EventHelper([ 'receive' ]);
+		this._isConnected = false;
+		this._events = new EventHelper([ 'connect', 'receive', 'disconnect', 'error' ]);
 	}
 	Bot.prototype.connect = function(slackToken) {
 		var self = this;
 		this._rtm = new RtmClient(slackToken, { logLevel: 'error' });
 
 		//bind event handlers
-		this._rtm.on(CLIENT_EVENTS.RTM.CONNECTING, function() {
-			console.log('Connecting...');
-		});
 		this._rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function() {
-			console.log('Connected!');
+			self._isConnected = true;
+			self._events.trigger('connect');
 		});
 		this._rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function() {
-			console.log('Disconnected!');
+			self._isConnected = false;
+			self._events.trigger('disconnect');
 		});
 		this._rtm.on(CLIENT_EVENTS.RTM.UNABLE_TO_RTM_START, function() {
-			console.log('Could not connect!');
-		});
-		this._rtm.on(CLIENT_EVENTS.RTM.ATTEMPTING_RECONNECT, function() {
-			console.log('Reconnecting...');
+			self._events.trigger('error');
 		});
 		this._rtm.on(RTM_EVENTS.MESSAGE, function(msg) {
 			if(msg.type === 'message' && !msg.subtype && !msg.user_profile) {
@@ -48,6 +45,9 @@ define([
 
 		//connect!
 		this._rtm.start();
+	};
+	Bot.prototype.isConnected = function() {
+		return this._isConnected;
 	};
 	Bot.prototype.sendMessage = function(userId, text) {
 		if(this._rtm) {

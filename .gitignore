@@ -1,3 +1,6 @@
+# Config changes don't get committed
+javascripts/config.js
+
 # Logs
 logs
 *.log

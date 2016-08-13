@@ -11,6 +11,8 @@
   "license": "MIT",
   "dependencies": {
     "@slack/client": "^3.5.4",
+    "mongodb": "^2.2.5",
+    "mongoose": "^4.5.8",
     "requirejs": "^2.2.0"
   }
 }

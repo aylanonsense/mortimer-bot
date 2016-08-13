@@ -4,8 +4,18 @@ define([
 	EventHelper
 ) {
 	function MUD() {
+		this._isPaused = false;
 		this._events = new EventHelper([ 'send' ]);
 	}
+	MUD.prototype.pause = function() {
+		this._isPaused = true;
+	};
+	MUD.prototype.unpause = function() {
+		this._isPaused = false;
+	};
+	MUD.prototype.isPaused = function() {
+		return this._isPaused;
+	};
 	MUD.prototype.handleMessage = function(userId, text) {
 		this.send(userId, text);
 	};
