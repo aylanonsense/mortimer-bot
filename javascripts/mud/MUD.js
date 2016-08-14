@@ -7,6 +7,9 @@ define([
 		this._isPaused = false;
 		this._events = new EventHelper([ 'send' ]);
 	}
+	MUD.prototype.addPlayer = function(player) {
+		//TODO
+	};
 	MUD.prototype.pause = function() {
 		this._isPaused = true;
 	};

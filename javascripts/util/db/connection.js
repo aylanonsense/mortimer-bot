@@ -16,6 +16,9 @@ define([
 		var self = this;
 
 		//bind event handlers
+		mongoose.connection.once('open', function() {
+			self.defineModels();
+		});
 		mongoose.connection.on('open', function() {
 			self._isConnected = true;
 			self._events.trigger('connect');
@@ -27,11 +30,12 @@ define([
 
 		//connect!
 		mongoose.connect(mongoUri);
-
-		// var PlayerSchema = new Schema({
-		// 	userId: { type: String, index: true }
-		// });
-		// var PlayerModel = mongoose.model('Player', PlayerSchema);
+	};
+	Connection.prototype.defineModels = function() {
+		var PlayerSchema = new Schema({
+			userId: { type: String, index: true }
+		});
+		var PlayerModel = mongoose.model('Player', PlayerSchema);
 	};
 	Connection.prototype.isConnected = function() {
 		return this._isConnected;

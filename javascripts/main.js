@@ -1,66 +1,69 @@
 define([
-	'bot/Bot',
+	'slack/Bot',
+	'shell/Shell',
 	'mud/MUD',
 	'util/db/connection'
 ], function(
-	Bot,
+	SlackBot,
+	Shell,
 	MUD,
 	DB
 ) {
 	return function main(slackToken, mongoUri) {
-		var pauseReason = 'starting up...';
+		var mud, shell, bot;
 
-		//create the mud
-		var mud = new MUD();
-		mud.pause();
+		connectDB(function() {
+			startShell();
+			connectToSlack();
+		});
 
-		//connect to slack
-		var bot = new Bot();
-		bot.on('connect', function() {
-			console.log('Slack bot connected');
-			if(DB.isConnected()) {
-				mud.unpause();
-			}
-		});
-		bot.on('disconnect', function() {
-			console.log('Slack bot disconnected');
-			mud.pause();
-			pauseReason = 'slack bot disconnected';
-		});
-		bot.on('error', function() {
-			console.log('Slack bot error!');
-			mud.pause();
-			pauseReason = 'slack bot encountered an error';
-		});
-		bot.connect(slackToken);
+		function connectDB(callback) {
+			var hasConnected = false;
+			//connect to the database
+			DB.on('connect', function() {
+				console.log('Database connected');
+				if(!hasConnected) {
+					hasConnected = true;
+					callback();
+				}
+			});
+			DB.on('error', function() {
+				console.log('Database error!');
+				shell.kill('The database encountered an error');
+			});
+			DB.connect(mongoUri);
+		}
 
-		//connect to the database
-		DB.on('connect', function() {
-			console.log('Database connected');
-			if(bot.isConnected()) {
-				mud.unpause();
-			}
-		});
-		DB.on('error', function() {
-			console.log('Database error!');
-			pauseReason = 'database encountered an error';
-			mud.pause();
-		});
-		DB.connect(mongoUri);
+		function startShell() {
+			mud = new MUD();
+			shell = new Shell(mud);
+		}
 
-		//bind events between them
-		bot.on('receive', function(userId, message) {
-			if(mud.isPaused()) {
-				bot.sendMessage(userId, 'Game is currently paused: ' + pauseReason);
-			}
-			else {
-				mud.handleMessage(userId, message);
-			}
-		});
-		mud.on('send', function(userId, message) {
-			if(bot.isConnected()) {
-				bot.sendMessage(userId, message);
-			}
-		});
+		function connectToSlack() {
+			//connect to slack
+			bot = new SlackBot();
+			bot.on('connect', function() {
+				console.log('Slack bot connected');
+			});
+			bot.on('disconnect', function() {
+				console.log('Slack bot disconnected');
+				shell.kill('Disconnected from Slack');
+			});
+			bot.on('error', function() {
+				console.log('Slack bot error!');
+				shell.kill('Slack encountered an error');
+			});
+			bot.connect(slackToken);
+
+			//bind events between them
+			bot.on('receive', function(userId, message) {
+				shell.receive(userId, message);
+			});
+			shell.on('send', function(userId, message) {
+				if(bot.isConnected()) {
+					bot.send(userId, message);
+				}
+			});
+		}
 	};
 });

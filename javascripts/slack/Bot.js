@@ -49,7 +49,7 @@ define([
 	Bot.prototype.isConnected = function() {
 		return this._isConnected;
 	};
-	Bot.prototype.sendMessage = function(userId, text) {
+	Bot.prototype.send = function(userId, text) {
 		if(this._rtm) {
 			var user = this._rtm.dataStore.getUserById(userId);
 			var directMessageChannel = this._rtm.dataStore.getDMByName(user.name);
