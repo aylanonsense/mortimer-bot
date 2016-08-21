@@ -7,6 +7,10 @@ requirejs.config({
 });
 require = requirejs;
 
+//fix mongoose deprecation warnings
+var mongoose = require('mongoose');
+mongoose.Promise = global.Promise;
+
 //get application arguments either from the config or the commandline
 var slackToken = '';
 var mongoUri = '';

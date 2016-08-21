@@ -3,7 +3,10 @@ define([
 ], function(
 	EventHelper
 ) {
-	function Player() {
+	function Player(model) {
+		this.model = model;
+		this.needsToSave = false;
+		this.entity = null;
 		this._hasLeft = false;
 		this._events = new EventHelper([ 'receive', 'send', 'leave' ]);
 	}
@@ -22,6 +25,9 @@ define([
 			this._hasLeft = true;
 			this._events.trigger('leave');
 		}
+	};
+	Player.prototype.hasLeft = function() {
+		return this._hasLeft;
 	};
 	Player.prototype.on = function(eventName, callback, ctx) {
 		return this._events.on.apply(this._events, arguments);

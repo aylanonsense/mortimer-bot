@@ -16,35 +16,40 @@ define([
 	}
 	Bot.prototype.connect = function(slackToken) {
 		var self = this;
-		this._rtm = new RtmClient(slackToken, { logLevel: 'error' });
+		return new Promise(function(fulfill, reject) {
+			self._rtm = new RtmClient(slackToken, { logLevel: 'error' });
 
-		//bind event handlers
-		this._rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function() {
-			self._isConnected = true;
-			self._events.trigger('connect');
-		});
-		this._rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function() {
-			self._isConnected = false;
-			self._events.trigger('disconnect');
-		});
-		this._rtm.on(CLIENT_EVENTS.RTM.UNABLE_TO_RTM_START, function() {
-			self._events.trigger('error');
-		});
-		this._rtm.on(RTM_EVENTS.MESSAGE, function(msg) {
-			if(msg.type === 'message' && !msg.subtype && !msg.user_profile) {
-				var text = msg.text;
-				var userId = msg.user;
-				var channelId = msg.channel;
-				var user = self._rtm.dataStore.getUserById(userId);
-				var directMessageChannel = self._rtm.dataStore.getDMByName(user.name);
-				if(channelId === directMessageChannel.id) {
-					self._events.trigger('receive', userId, text);
+			//bind event handlers
+			self._rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function() {
+				self._isConnected = true;
+				self._events.trigger('connect');
+				fulfill(self);
+			});
+			self._rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function() {
+				self._isConnected = false;
+				self._events.trigger('disconnect');
+				reject();
+			});
+			self._rtm.on(CLIENT_EVENTS.RTM.UNABLE_TO_RTM_START, function(err) {
+				self._events.trigger('error', err);
+				reject(err);
+			});
+			self._rtm.on(RTM_EVENTS.MESSAGE, function(msg) {
+				if(msg.type === 'message' && !msg.subtype && !msg.user_profile) {
+					var text = msg.text;
+					var userId = msg.user;
+					var channelId = msg.channel;
+					var user = self._rtm.dataStore.getUserById(userId);
+					var directMessageChannel = self._rtm.dataStore.getDMByName(user.name);
+					if(channelId === directMessageChannel.id) {
+						self._events.trigger('receive', userId, text);
+					}
 				}
-			}
-		});
+			});
 
-		//connect!
-		this._rtm.start();
+			//connect!
+			self._rtm.start();
+		});
 	};
 	Bot.prototype.isConnected = function() {
 		return this._isConnected;

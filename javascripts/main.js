@@ -2,68 +2,148 @@ define([
 	'slack/Bot',
 	'shell/Shell',
 	'mud/MUD',
-	'util/db/connection'
+	'mud/MUDRunner',
+	'util/db/connection',
+	'util/db/EntityORM',
+	'util/db/PlayerORM',
+	'mud/initializeWorld'
 ], function(
 	SlackBot,
 	Shell,
 	MUD,
-	DB
+	MUDRunner,
+	db,
+	EntityORM,
+	PlayerORM,
+	initializeWorld
 ) {
+	var COMMAND_LINE_USER_ID = 'cmdline';
+
 	return function main(slackToken, mongoUri) {
-		var mud, shell, bot;
+		var mud, mudRunner, shell, bot;
 
-		connectDB(function() {
-			startShell();
-			connectToSlack();
-		});
+		//the basic flow of setup
+		connectToDatabase()
+			.then(resetDatabase)
+			.then(initializeTheWorld)
+			.then(createMUD)
+			.then(startMUD)
+			.then(createShell)
+			// .then(connectToSlack)
+			// .then(hookShellUpToSlack)
+			.then(hookShellUpToCommandLine)
+			.then(saveDatabasePeriodically)
+			.then(function() {
+				console.log('Ready for connections!');
+			})
+			.catch(function(err) {
+				console.log('Error during startup', err);
+				stopMUD('Error during startup');
+			});
 
-		function connectDB(callback) {
-			var hasConnected = false;
-			//connect to the database
-			DB.on('connect', function() {
-				console.log('Database connected');
-				if(!hasConnected) {
-					hasConnected = true;
-					callback();
-				}
+		function connectToDatabase() {
+			console.log('Connecting to database...');
+			db.on('error', function(err) {
+				console.log('Database error', err);
+				stopMUD('Database error');
 			});
-			DB.on('error', function() {
-				console.log('Database error!');
-				shell.kill('The database encountered an error');
+			db.on('disconnect', function() {
+				console.log('Disconnected from database');
+				stopMUD('Disconnected from database');
 			});
-			DB.connect(mongoUri);
+			return db.connect(mongoUri);
 		}
 
-		function startShell() {
+		function resetDatabase() {
+			console.log('Resetting database...');
+			var deleteAllWorldParams = db.models.WorldParams.remove().exec();
+			var deleteAllPlayers = db.models.Player.remove().exec();
+			var deleteAllEntities = db.models.Entity.remove().exec();
+			return Promise.all([ deleteAllWorldParams, deleteAllPlayers, deleteAllEntities ]);
+		}
+
+		function initializeTheWorld() {
+			console.log('Initializing world...');
+			return initializeWorld();
+		}
+
+		function createMUD() {
+			console.log('Creating MUD...');
 			mud = new MUD();
+			return mud.setUp();
+		}
+
+		function startMUD() {
+			console.log('Starting MUD...');
+			mudRunner = new MUDRunner(mud);
+			mudRunner.start();
+		}
+
+		function createShell() {
+			console.log('Creating shell...');
 			shell = new Shell(mud);
 		}
 
 		function connectToSlack() {
-			//connect to slack
+			console.log('Connecting to Slack...');
 			bot = new SlackBot();
-			bot.on('connect', function() {
-				console.log('Slack bot connected');
+			bot.on('error', function(err) {
+				console.log('Slack error', err);
 			});
 			bot.on('disconnect', function() {
-				console.log('Slack bot disconnected');
-				shell.kill('Disconnected from Slack');
+				console.log('Disconnected from Slack');
 			});
-			bot.on('error', function() {
-				console.log('Slack bot error!');
-				shell.kill('Slack encountered an error');
-			});
-			bot.connect(slackToken);
+			return bot.connect(slackToken);
+		}
 
-			//bind events between them
+		function hookShellUpToSlack() {
+			console.log('Hooking the shell up to Slack...');
 			bot.on('receive', function(userId, message) {
 				shell.receive(userId, message);
 			});
 			shell.on('send', function(userId, message) {
-				if(bot.isConnected()) {
+				if(bot.isConnected() && userId !== COMMAND_LINE_USER_ID) {
 					bot.send(userId, message);
 				}
 			});
+		}
+
+		function hookShellUpToCommandLine() {
+			console.log('Hooking the shell up to the command line...');
+			var stdin = process.openStdin();
+			stdin.addListener("data", function(d) {
+				shell.receive(COMMAND_LINE_USER_ID, d.toString().trim());
+			});
+			shell.on('send', function(userId, message) {
+				if(userId === COMMAND_LINE_USER_ID) {
+					console.log(message);
+				}
+			});
+		}
+
+		function saveDatabasePeriodically() {
+			console.log('Periodically saving database...');
+			saveDatabase();
+		}
+
+		function saveDatabase() {
+			Promise.all([EntityORM.saveEntities(), PlayerORM.savePlayers() ])
+				.then(function() {
+					setTimeout(saveDatabase, 5 * 1000);
+				})
+				.catch(function(err) {
+					console.log('Error saving database', err);
+				});
+		}
+
+		function stopMUD(reason) {
+			db.disconnect();
+			if(mudRunner) {
+				mudRunner.stop();
+			}
+			if(shell) {
+				shell.kill(reason);
+			}
 		}
 	};
 });

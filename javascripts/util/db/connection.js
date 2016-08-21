@@ -1,41 +1,46 @@
 define([
 	'mongoose',
+	'util/db/defineModels',
 	'util/EventHelper'
 ], function(
 	mongoose,
+	defineModels,
 	EventHelper
 ) {
-	var Schema = mongoose.Schema;
-	var ObjectId = Schema.ObjectId;
-
 	function Connection() {
+		this.models = {};
 		this._isConnected = false;
-		this._events = new EventHelper([ 'connect', 'error' ]);
+		this._events = new EventHelper([ 'connect', 'disconnect', 'error' ]);
 	}
 	Connection.prototype.connect = function(mongoUri) {
 		var self = this;
+		return new Promise(function(fulfill, reject) {
+			//bind event handlers
+			mongoose.connection.once('open', function() {
+				self.models = defineModels();
+			});
+			mongoose.connection.on('open', function() {
+				self._isConnected = true;
+				self._events.trigger('connect');
+				fulfill(self);
+			});
+			mongoose.connection.on('close', function() {
+				self._isConnected = false;
+				self._events.trigger('disconnect');
+				reject();
+			});
+			mongoose.connection.on('error', function(err) {
+				self._isConnected = false;
+				self._events.trigger('error', err);
+				reject(err);
+			});
 
-		//bind event handlers
-		mongoose.connection.once('open', function() {
-			self.defineModels();
+			//connect!
+			mongoose.connect(mongoUri);
 		});
-		mongoose.connection.on('open', function() {
-			self._isConnected = true;
-			self._events.trigger('connect');
-		});
-		mongoose.connection.on('error', function() {
-			self._isConnected = false;
-			self._events.trigger('error');
-		});
-
-		//connect!
-		mongoose.connect(mongoUri);
 	};
-	Connection.prototype.defineModels = function() {
-		var PlayerSchema = new Schema({
-			userId: { type: String, index: true }
-		});
-		var PlayerModel = mongoose.model('Player', PlayerSchema);
+	Connection.prototype.disconnect = function() {
+		mongoose.connection.close();
 	};
 	Connection.prototype.isConnected = function() {
 		return this._isConnected;

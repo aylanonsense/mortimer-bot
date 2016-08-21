@@ -1,9 +1,13 @@
 define([
-	'shell/Player',
-	'util/EventHelper'
+	'util/db/PlayerORM',
+	'util/EventHelper',
+	'util/db/connection',
+	'dateformat'
 ], function(
-	Player,
-	EventHelper
+	PlayerORM,
+	EventHelper,
+	db,
+	dateFormat
 ) {
 	function Shell(mud) {
 		this.mud = mud;
@@ -16,11 +20,12 @@ define([
 		var self = this;
 		var player = this.players[userId];
 		var isLoggingIn = this.playersBeingLoggedIn[userId];
-		if(text == '~help') {
-			this.send(userId, "Type `~login` to log in\nType `~logout` to log out");
-		}
-		else if(this._killReason) {
+		if(this._killReason) {
 			this.send(userId, "Game stopped: " + this._killReason);
+		}
+		else if(text == '~help') {
+			this.send(userId, "Type `~login` to log in");
+			this.send(userId, "Type `~logout` to log out");
 		}
 		else if(isLoggingIn) {
 			this.send(userId, "Hold on hold on you're being logged in...");
@@ -33,17 +38,39 @@ define([
 				//log the player in
 				this.send(userId, "Logging in...");
 				this.playersBeingLoggedIn[userId] = true;
-				//TODO get/create/login player
-				setTimeout(function() {
-					player = new Player();
-					player.on('send', function(text) {
-						this.send(userId, text);
-					}, self);
-					self.players[userId] = player;
-					delete self.playersBeingLoggedIn[userId];
-					self.send(userId, "Logged in!");
-					self.mud.addPlayer(player);
-				}, 2000);
+				PlayerORM.getPlayerByUserId(userId)
+					//create the player if it doesn't already exist
+					.then(function(player) {
+						if(!player) {
+							player = PlayerORM.createPlayer({
+								userId: userId
+							});
+						}
+						return player;
+					})
+					//add the player to the mud
+					.then(function(player) {
+						return self.mud.addPlayer(player);
+					})
+					//hook everything up
+					.then(function(player) {
+						self.send(userId, "Last logged in " + dateFormat(player.model.dateLastLoggedIn, 'dddd, mmmm dS, yyyy, h:MM:ss TT'));
+						player.model.dateLastLoggedIn = new Date();
+						player.needsToSave = true;
+						self.players[userId] = player;
+						delete self.playersBeingLoggedIn[userId];
+						player.on('send', function(text) {
+							self.send(userId, text);
+						});
+					})
+					.catch(function(err) {
+						delete self.players[userId];
+						delete self.playersBeingLoggedIn[userId];
+						// console.log('User ' + userId + ' error during login:', err);
+						console.log(err);
+						self.send(userId, "Error logging in!");
+						throw err;
+					});
 			}
 		}
 		else if(text === '~logout') {
@@ -53,6 +80,7 @@ define([
 			else {
 				//log the player out
 				player.leave();
+				PlayerORM.unloadPlayerByUserId(userId);
 				delete this.players[userId];
 				this.send(userId, "You have been logged out");
 			}
