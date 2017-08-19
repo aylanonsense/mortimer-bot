@@ -12,16 +12,21 @@ var mongoose = require('mongoose');
 mongoose.Promise = global.Promise;
 
 //get application arguments either from the config or the commandline
-var slackToken = '';
-var mongoUri = '';
+var params = {
+	SLACK_TOKEN: '',
+	MONGO_URI: '',
+	LOG_LEVEL: 'info'
+};
+var config;
 try {
-	var config = require('config');
-	slackToken = config.SLACK_TOKEN;
-	mongoUri = config.MONGO_URI;
+	config = require('config');
 }
-catch(err) {}
-slackToken = process.env.SLACK_TOKEN || slackToken;
-mongoUri = process.env.MONGO_URI || mongoUri;
+catch(err) {
+	config = null;
+}
+for(var k in params) {
+	params[k] = process.env[k] || (config && config[k]) || params[k];
+}
 
 //run server application
-require('main')(slackToken, mongoUri);
+require('main')(params);

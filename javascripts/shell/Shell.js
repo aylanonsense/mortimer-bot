@@ -1,47 +1,48 @@
 define([
-	'util/db/PlayerORM',
-	'util/EventHelper',
-	'util/db/connection',
-	'dateformat'
+	'util/log',
+	'db/connection',
+	'db/PlayerORM',
+	'dateformat',
+	'util/EventHelper'
 ], function(
-	PlayerORM,
-	EventHelper,
+	log,
 	db,
-	dateFormat
+	PlayerORM,
+	dateFormat,
+	EventHelper
 ) {
 	function Shell(mud) {
 		this.mud = mud;
 		this.players = {};
 		this.playersBeingLoggedIn = {};
 		this._events = new EventHelper([ 'send' ]);
-		this._killReason = null;
 	}
 	Shell.prototype.receive = function(userId, text) {
 		var self = this;
+		var logPrefix = '[' + userId.substr(0, 4) + '] ';
 		var player = this.players[userId];
 		var isLoggingIn = this.playersBeingLoggedIn[userId];
-		if(this._killReason) {
-			this.send(userId, "Game stopped: " + this._killReason);
-		}
-		else if(text == '~help') {
-			this.send(userId, "Type `~login` to log in");
-			this.send(userId, "Type `~logout` to log out");
+		if(text === '~help') {
+			this.send(userId, 'Type `~login` to log in');
+			this.send(userId, 'Type `~logout` to log out');
 		}
 		else if(isLoggingIn) {
-			this.send(userId, "Hold on hold on you're being logged in...");
+			this.send(userId, 'Hold on you\'re being logged in...');
 		}
 		else if(text === '~login') {
 			if(player) {
-				this.send(userId, "You are already logged in");
+				this.send(userId, 'You are already logged in');
 			}
 			else {
 				//log the player in
-				this.send(userId, "Logging in...");
 				this.playersBeingLoggedIn[userId] = true;
+				log.info(logPrefix + 'Player logging in...');
+				this.send(userId, 'Logging in...');
 				PlayerORM.getPlayerByUserId(userId)
 					//create the player if it doesn't already exist
 					.then(function(player) {
 						if(!player) {
+							log.verbose(logPrefix + 'First time logging in');
 							player = PlayerORM.createPlayer({
 								userId: userId
 							});
@@ -50,15 +51,23 @@ define([
 					})
 					//add the player to the mud
 					.then(function(player) {
-						return self.mud.addPlayer(player);
+						return self.mud.addPlayer(player)
+							.then(function() {
+								return player;
+							});
 					})
-					//hook everything up
 					.then(function(player) {
-						self.send(userId, "Last logged in " + dateFormat(player.model.dateLastLoggedIn, 'dddd, mmmm dS, yyyy, h:MM:ss TT'));
-						player.model.dateLastLoggedIn = new Date();
-						player.needsToSave = true;
 						self.players[userId] = player;
 						delete self.playersBeingLoggedIn[userId];
+						log.info(logPrefix + 'Player logged in!');
+						if(player.model.dateLastLoggedIn) {
+							self.send(userId, 'Logged in! Last logged in ' + dateFormat(player.model.dateLastLoggedIn, 'dddd, mmmm dS, yyyy, h:MM:ss TT'));
+						}
+						else {
+							self.send(userId, 'Logged in!');
+						}
+						player.model.dateLastLoggedIn = new Date();
+						player.needsToSave = true;
 						player.on('send', function(text) {
 							self.send(userId, text);
 						});
@@ -66,37 +75,30 @@ define([
 					.catch(function(err) {
 						delete self.players[userId];
 						delete self.playersBeingLoggedIn[userId];
-						// console.log('User ' + userId + ' error during login:', err);
-						console.log(err);
-						self.send(userId, "Error logging in!");
-						throw err;
+						log.error(logPrefix + 'Error logging in', err);
+						self.send(userId, 'Error logging in!');
 					});
 			}
 		}
 		else if(text === '~logout') {
 			if(!player) {
-				this.send(userId, "You are not logged in");
+				this.send(userId, 'You are not logged in');
 			}
 			else {
 				//log the player out
 				player.leave();
-				PlayerORM.unloadPlayerByUserId(userId);
+				PlayerORM.unloadPlayer(player);
 				delete this.players[userId];
-				this.send(userId, "You have been logged out");
+				log.info(logPrefix + 'Player logged out');
+				this.send(userId, 'You have been logged out');
 			}
 		}
 		else if(!player) {
-			this.send(userId, "You are not logged in. Type `~login` to log in or `~help` for a list of commands");
+			this.send(userId, 'You are not logged in. Type `~login` to log in or `~help` for a list of commands');
 		}
 		else {
 			//forward the text to the MUD, through the Player object
 			player.receive(text);
-		}
-	};
-	Shell.prototype.kill = function(reason) {
-		this._killReason = reason;
-		for(var userId in this.players) {
-			this.send(userId, "Game stopped: " + this._killReason);
 		}
 	};
 	Shell.prototype.send = function(userId, text) {

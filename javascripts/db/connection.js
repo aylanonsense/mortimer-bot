@@ -1,6 +1,6 @@
 define([
 	'mongoose',
-	'util/db/defineModels',
+	'db/defineModels',
 	'util/EventHelper'
 ], function(
 	mongoose,
@@ -22,7 +22,7 @@ define([
 			mongoose.connection.on('open', function() {
 				self._isConnected = true;
 				self._events.trigger('connect');
-				fulfill(self);
+				fulfill();
 			});
 			mongoose.connection.on('close', function() {
 				self._isConnected = false;

@@ -1,8 +1,6 @@
 define([
-	'util/db/connection',
 	'util/EventHelper'
 ], function(
-	db,
 	EventHelper
 ) {
 	function MUDRunner(mud) {

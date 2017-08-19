@@ -9,12 +9,12 @@ define([
 	var RTM_EVENTS = SlackClient.RTM_EVENTS;
 	var RtmClient = SlackClient.RtmClient;
 
-	function Bot() {
+	function SlackBot() {
 		this._rtm = null;
 		this._isConnected = false;
 		this._events = new EventHelper([ 'connect', 'receive', 'disconnect', 'error' ]);
 	}
-	Bot.prototype.connect = function(slackToken) {
+	SlackBot.prototype.connect = function(slackToken) {
 		var self = this;
 		return new Promise(function(fulfill, reject) {
 			self._rtm = new RtmClient(slackToken, { logLevel: 'error' });
@@ -23,7 +23,7 @@ define([
 			self._rtm.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, function() {
 				self._isConnected = true;
 				self._events.trigger('connect');
-				fulfill(self);
+				fulfill();
 			});
 			self._rtm.on(CLIENT_EVENTS.RTM.DISCONNECT, function() {
 				self._isConnected = false;
@@ -51,18 +51,23 @@ define([
 			self._rtm.start();
 		});
 	};
-	Bot.prototype.isConnected = function() {
+	SlackBot.prototype.disconnect = function() {
+		if(this._rtm) {
+			this._rtm.disconnect();
+		}
+	};
+	SlackBot.prototype.isConnected = function() {
 		return this._isConnected;
 	};
-	Bot.prototype.send = function(userId, text) {
+	SlackBot.prototype.send = function(userId, text) {
 		if(this._rtm) {
 			var user = this._rtm.dataStore.getUserById(userId);
 			var directMessageChannel = this._rtm.dataStore.getDMByName(user.name);
 			this._rtm.sendMessage(text, directMessageChannel.id);
 		}
 	};
-	Bot.prototype.on = function(eventName, callback, ctx) {
+	SlackBot.prototype.on = function(eventName, callback, ctx) {
 		return this._events.on.apply(this._events, arguments);
 	};
-	return Bot;
+	return SlackBot;
 });

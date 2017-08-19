@@ -9,23 +9,21 @@ define([
 	return function defineModels() {
 		var WorldParamsSchema = new Schema({
 			dateCreated: { type: Date, default: Date.now },
-			nowhereRoom: { type: ObjectId, ref: 'Entity', required: true },
-			startingRoom: { type: ObjectId, ref: 'Entity', required: true },
-			startingActorBlueprint: { type: ObjectId, ref: 'Entity', required: true }
+			startingActorBlueprintId: { type: ObjectId, ref: 'Entity', required: true }
 		});
 
 		var PlayerSchema = new Schema({
-			dateCreated: { type: Date, default: Date.now },
-			dateLastLoggedIn: { type: Date, default: Date.now },
 			userId: { type: String, required: true, unique: true },
-			avatarEntity: { type: ObjectId, ref: 'Entity' },
-			controlledEntity: { type: ObjectId, ref: 'Entity' }
+			dateCreated: { type: Date, default: Date.now },
+			dateLastLoggedIn: { type: Date },
+			avatarEntityId: { type: ObjectId, ref: 'Entity' },
+			controlledEntityId: { type: ObjectId, ref: 'Entity' }
 		});
 
 		var EntitySchema = new Schema({
-			createPlayer: { type: ObjectId, ref: 'Player' },
+			createPlayerId: { type: ObjectId, ref: 'Player' },
 			dateCreated: { type: Date, default: Date.now },
-			editPlayer: { type: ObjectId, ref: 'Player' },
+			editPlayerId: { type: ObjectId, ref: 'Player' },
 			dateEdited: { type: Date },
 			entityType: { type: String, required: true, enum: [ 'actor', 'room', 'item', 'lore' ] },
 			name: { type: String },
@@ -39,15 +37,26 @@ define([
 				reflexive: { type: String, required: true, default: 'itself' } //to myself/yourself/ourselves/herself/himself/themselves/itself
 			},
 			article: { type: String, required: true, default: 'the', enum: [ 'the', 'a' ] },
-			heldBy: { type: ObjectId, ref: 'Entity' },
+			heldById: { type: ObjectId, ref: 'Entity' },
 			canExistWithoutPlayer: { type: Boolean, default: true },
 			isBlueprint: { type: Boolean, default: false },
-			isInStasis: { type: Boolean, default: false },
 			isDynamic: { type: Boolean, default: false },
 			isQuantity: { type: Boolean, default: false },
 			quantity: { type: Number, default: 1 },
-			referencedEntity: { type: ObjectId, ref: 'Entity' }
+			referencedEntityId: { type: ObjectId, ref: 'Entity' }
 		});
+		EntitySchema.virtual('moniker')
+			.get(function () {
+				if(this.name) {
+					return this.name;
+				}
+				else if(this.title) {
+					return this.article + ' ' + this.title;
+				}
+				else {
+					return 'unnamed';
+				}
+			});
 
 		return {
 			WorldParams: mongoose.model('WorldParams', WorldParamsSchema),
